@@ -1,5 +1,5 @@
 import { EventEmitter } from 'events';
-import { storage } from '../storage';
+import { getStorage } from '../storage';
 import type { ArduinoData, Recommendation } from '@shared/schema';
 
 export interface N8nRecommendation {
@@ -59,6 +59,7 @@ export class N8nService extends EventEmitter {
   async requestRecommendations(sessionId: string): Promise<Recommendation[]> {
     try {
       // Get recent sensor readings for this session
+      const storage = await getStorage();
       const readings = await storage.getSensorReadingsBySession(sessionId);
       const session = await storage.getSessionBySessionId(sessionId);
 
@@ -107,6 +108,7 @@ export class N8nService extends EventEmitter {
 
   private async processRecommendations(sessionId: string, n8nRecommendations: N8nRecommendation[]): Promise<Recommendation[]> {
     const recommendations: Recommendation[] = [];
+    const storage = await getStorage();
 
     for (const rec of n8nRecommendations) {
       try {
@@ -133,6 +135,7 @@ export class N8nService extends EventEmitter {
 
   async sendSessionComplete(sessionId: string): Promise<void> {
     try {
+      const storage = await getStorage();
       const session = await storage.getSessionBySessionId(sessionId);
       const readings = await storage.getSensorReadingsBySession(sessionId);
 

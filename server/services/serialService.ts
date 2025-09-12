@@ -2,7 +2,7 @@ import { SerialPort } from 'serialport';
 import { ReadlineParser } from '@serialport/parser-readline';
 import { EventEmitter } from 'events';
 import { arduinoDataSchema, type ArduinoData } from '@shared/schema';
-import { storage } from '../storage';
+import { getStorage } from '../storage';
 
 export interface SerialPortInfo {
   path: string;
@@ -65,6 +65,7 @@ export class SerialService extends EventEmitter {
           this.currentPortPath = portPath;
           
           // Store port info in storage
+          const storage = await getStorage();
           await storage.createOrUpdateSerialPort({
             path: portPath,
             isActive: true,
@@ -166,6 +167,7 @@ export class SerialService extends EventEmitter {
 
   private async storeSensorReading(data: ArduinoData): Promise<void> {
     try {
+      const storage = await getStorage();
       await storage.createSensorReading({
         sessionId: data.sessionId,
         timestamp: new Date(data.timestamp),

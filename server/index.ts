@@ -1,7 +1,8 @@
-
+import 'dotenv/config';
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
+import { getStorage } from "./storage";
 
 const app = express();
 app.use(express.json());
@@ -48,6 +49,11 @@ app.use((req, res, next) => {
     throw err;
   });
 
+  // Add API 404 handler to prevent unmatched API routes from falling through to Vite
+  app.all('/api/*', (_req, res) => {
+    res.status(404).json({ message: 'API endpoint not found' });
+  });
+
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
@@ -57,13 +63,21 @@ app.use((req, res, next) => {
     serveStatic(app);
   }
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
+  // Serve the app on the specified port
+  // Use localhost for local development, 0.0.0.0 for production
   const port = parseInt(process.env.PORT || '5000', 10);
-
-server.listen(port, "localhost", () => {
-  log(`serving on http://localhost:${port}`);
-
-});})();
+  const host = process.env.NODE_ENV === 'production' ? '0.0.0.0' : 'localhost';
+  
+  server.listen({
+    port,
+    host,
+  }, () => {
+    log(`serving on ${host}:${port}`);
+  });
+  
+  // Initialize storage early to surface connection logs
+  getStorage().catch(error => {
+    console.error("Failed to initialize storage on startup:", error);
+    // Error is handled in initializeStorage, this just logs it for visibility
+  });
+})();
