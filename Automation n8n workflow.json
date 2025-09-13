@@ -3,15 +3,16 @@
   "nodes": [
     {
       "parameters": {
+        "httpMethod": "POST",
         "path": "patient-query",
-        "responseMode": "lastNode",
+        "responseMode": "responseNode",
         "options": {}
       },
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        0,
-        0
+        -144,
+        48
       ],
       "id": "3a922797-751e-4e36-b5fd-81ee78b7bad6",
       "name": "Webhook",
@@ -19,13 +20,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Get query data safely\nconst query = $json.query || {};  // if no query, fallback to empty object\n\n// Extract and normalize data\nconst userId = query.userId || \"anonymous\";\nconst mobilityScore = query.mobility_score ? parseInt(query.mobility_score, 10) : null;\nconst painLevel = query.pain_level ? parseInt(query.pain_level, 10) : null;\nconst recoveryStage = query.recovery_stage || null;\n\n// Craft a precise instruction (prompt) for the AI\nconst prompt = `\nROLE: You are an AI physical therapy assistant named \"OrthoCare AI\", specializing in knee rehabilitation after injuries or surgery.\n\nPATIENT DATA:\n- Mobility Score: ${mobilityScore ?? \"unknown\"} out of 100 (Higher is better)\n- Patient-Reported Pain Level: ${painLevel ?? \"unknown\"} out of 10 (Lower is better)\n- Recovery Stage: ${recoveryStage ?? \"unknown\"} (e.g., 'initial', 'intermediate', 'advanced')\n\nTASK:\nAnalyze the patient's data above and provide a personalized exercise recommendation that is safe and effective for their current condition.\n\nCRITICAL INSTRUCTIONS:\n1.  **Safety First:** If pain level is reported as 7 or higher, do not recommend a new exercise. Instead, recommend rest and consulting their physical therapist.\n2.  **Exercise Type:** For recovery stages 'initial' or pain levels above 4, recommend only passive range-of-motion or very gentle strengthening exercises (e.g., heel slides, quad sets, straight leg raises). Avoid recommending weighted or high-impact exercises.\n3.  **Tone:** Be supportive, encouraging, and professional.\n4.  **OUTPUT FORMAT:** You MUST respond in a valid JSON format only, using the following exact keys:\n\n{\n  \"feedback\": \"(Your overall assessment and message for the patient. 1-2 sentences.)\",\n  \"recommendedExercise\": \"(The name of a single, specific knee rehabilitation exercise. If pain is too high, put 'Consult Therapist'.)\",\n  \"rationale\": \"(A brief, one-sentence explanation for your recommendation.)\",\n  \"confidence\": (A number between 0.5 and 1.0 representing your confidence in this recommendation.)\n}\n`;\n\n// Pass this prompt and userId to next node\nreturn [{\n  json: {\n    prompt,\n    userId\n  }\n}];\n"
+        "jsCode": "// Get the data from the incoming webhook body\nconst body = $json.body || {};\nconst arduinoData = body.arduino_data || {};\n\n// Extract values safely\nconst timestamp = body.timestamp || \"\";\nconst kneeAngle = parseFloat(arduinoData.knee_angle || \"0\");\nconst roll = parseFloat(arduinoData.roll || \"0\");\nconst pitch = parseFloat(arduinoData.pitch || \"0\");\nconst yaw = parseFloat(arduinoData.yaw || \"0\");\nconst recordingStatus = arduinoData.recording_status || \"unknown\";\nconst source = body.source || \"unknown\";\n\n// Create a structured output to pass to the next node\nreturn [{\n  json: {\n    timestamp,\n    kneeAngle,\n    roll,\n    pitch,\n    yaw,\n    recordingStatus,\n    source\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        256,
-        16
+        96,
+        96
       ],
       "id": "e2a665da-b919-4665-bf77-ee7cfdf95030",
       "name": "Code in JavaScript"
@@ -41,11 +42,11 @@
         "messages": {
           "values": [
             {
-              "content": "You are a safe physiotherapy assistant. Provide short, cautious exercise recommendations for knee rehabilitation. Always return valid JSON only.\n",
+              "content": "{\n  \"role\": \"system\",\n  \"content\": \"You are an AI physical therapy assistant named 'OrthoConnect', specializing in knee rehabilitation after injuries or surgery. Your role is to analyze patient data and provide personalized, safe, and effective exercise or posture recommendations. You must be supportive, encouraging, and professional in your responses.\\n\\nUse the patient’s mobility score, pain level, recovery stage, and sensor data like knee angle, roll, pitch, and yaw to determine their current condition. Provide practical advice that improves their rehabilitation outcomes while prioritizing safety.\\n\\nIf pain is too high, recommend rest and consulting a healthcare provider instead of exercises.\\n\\nDo not include any YouTube video links or related fields in your response. Only provide text-based recommendations.\"\n}\n",
               "role": "system"
             },
             {
-              "content": "=Patient data:\n- Mobility score: {{$json[\"mobility_score\"]}}\n- Pain level: {{$json[\"pain_level\"]}}\n- Recovery stage: {{$json[\"recovery_stage\"]}}\n\nReturn EXACTLY a JSON array of 3 exercises with fields:\n{\n  \"title\": \"<short exercise name>\",\n  \"description\": \"<one-sentence how-to>\",\n  \"reps\": \"<sets/reps or duration>\",\n  \"precautions\": \"<short safety notes>\"\n}\n"
+              "content": "={\n  \"role\": \"user\",\n  \"content\": \"Here is the patient’s data:\\n\\n- Mobility Score: 89 out of 100 (Higher is better)\\n- Pain Level: 5 out of 10 (Lower is better)\\n- Recovery Stage: advanced\\n- Knee Angle: 160.006 degrees\\n- Roll: 8.19\\n- Pitch: 0.33\\n- Yaw: -0.64\\n- Recording Status: YES\\n- Source: arduino_knee_monitor\\n\\nBased on this data, please provide:\\n\\n1. A recommended exercise or posture adjustment that is appropriate and safe for the patient’s condition.\\n2. An explanation of why this recommendation is suitable.\\n3. General advice or tips for improving knee health and posture.\\n4. Ensure that if the pain level is high (7 or above), you recommend rest and consulting a healthcare professional instead of exercises.\\n\\nPlease respond in a structured JSON format using these keys:\\n\\n{\\n  \\\"feedback\\\": \\\"(A brief supportive message to the patient.)\\\",\\n  \\\"recommendedExercise\\\": \\\"(A specific exercise or posture tip.)\\\",\\n  \\\"rationale\\\": \\\"(One sentence explaining why this recommendation is suitable.)\\\",\\n  \\\"additionalAdvice\\\": \\\"(Extra tips on posture or care.)\\\",\\n  \\\"confidence\\\": (A number between 0.5 and 1.0 representing your confidence in the recommendation.)\\n}\"\n}\n"
             }
           ]
         },
@@ -68,7 +69,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  // ✅ Correct path\n  const content = item.json?.choices?.[0]?.message?.content || null;\n\n  if (!content) {\n    output.push({\n      json: {\n        error: \"No message returned from AI\",\n        rawData: item.json\n      }\n    });\n    continue;\n  }\n\n  // Remove code block formatting if present\n  let cleanContent = content.trim();\n  if (cleanContent.startsWith(\"```json\")) {\n    cleanContent = cleanContent.replace(/^```json/, \"\").replace(/```$/, \"\").trim();\n  }\n\n  let parsed;\n  try {\n    parsed = JSON.parse(cleanContent);\n    if (!Array.isArray(parsed)) {\n      parsed = [parsed]; // Always make sure it’s an array\n    }\n  } catch (e) {\n    parsed = [{ rawContent: cleanContent, error: \"Could not parse JSON\" }];\n  }\n\n  for (const ex of parsed) {\n    output.push({ json: ex });\n  }\n}\n\nreturn output;\n"
+        "jsCode": "const items = $input.all();\nconst output = [];\n\nfor (const item of items) {\n  // ✅ Adjusted path to match actual data structure\n  const content = item.json?.message?.content || null;\n\n  if (!content) {\n    output.push({\n      json: {\n        error: \"No message returned from AI\",\n        rawData: item.json\n      }\n    });\n    continue;\n  }\n\n  // Remove code block formatting if present\n  let cleanContent = content.trim();\n  if (cleanContent.startsWith(\"```json\")) {\n    cleanContent = cleanContent.replace(/^```json/, \"\").replace(/```$/, \"\").trim();\n  }\n\n  try {\n    const parsed = JSON.parse(cleanContent);\n\n    // ✅ Directly push the parsed object since it's already structured\n    output.push({\n      json: parsed\n    });\n\n  } catch (e) {\n    output.push({\n      json: {\n        error: \"Could not parse JSON\",\n        rawContent: cleanContent\n      }\n    });\n  }\n}\n\nreturn output;\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -81,96 +82,47 @@
     },
     {
       "parameters": {
-        "options": {}
-      },
-      "type": "n8n-nodes-base.mongoDb",
-      "typeVersion": 1.2,
-      "position": [
-        80,
-        128
-      ],
-      "id": "f3fb3245-8bb2-4147-b517-ff58a18bb640",
-      "name": "Find documents"
-    },
-    {
-      "parameters": {
         "respondWith": "json",
-        "responseBody": "={{ JSON.stringify($json) }\n",
+        "responseBody": "={{ JSON.stringify($json) }}\n",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.4,
       "position": [
         944,
-        144
+        160
       ],
       "id": "8ff630ae-d2ce-4f31-918c-987e99c7d8f7",
       "name": "Respond to Webhook"
     },
     {
       "parameters": {
-        "jsCode": "const items = $input.all();\nconst exercises = items.map(item => item.json);\n\n// Wrap into one object\nreturn [{\n  json: {\n    recommendations: exercises\n  }\n}];\n"
+        "jsCode": "const items = $input.all();\nconst exercises = items.map(item => item.json);\n\n// Return as the response to the webhook\nreturn [{\n  json: {\n    status: \"success\",\n    recommendations: exercises\n  }\n}];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        672,
-        144
+        736,
+        160
       ],
       "id": "718a55fc-83c2-4117-86b9-995952fb1827",
       "name": "Code in JavaScript2"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Extract values from the previous node\nconst timestamp = $json.timestamp || \"\";\nconst kneeAngle = $json.kneeAngle || 0;\nconst roll = $json.roll || 0;\nconst pitch = $json.pitch || 0;\nconst yaw = $json.yaw || 0;\nconst recordingStatus = $json.recordingStatus || \"unknown\";\nconst source = $json.source || \"unknown\";\n\n// Here you can also decide how to map or normalize these values if needed\n// For example, you might want to infer mobilityScore and painLevel from kneeAngle, etc.\n// For demonstration, we'll use some placeholder logic:\n\n// Example mappings (you can refine this later)\nconst mobilityScore = Math.round((kneeAngle / 180) * 100); // converting angle to score out of 100\nconst painLevel = roll > 10 ? 8 : roll > 5 ? 5 : 3; // dummy logic based on roll\nconst recoveryStage = kneeAngle < 100 ? \"initial\" : kneeAngle < 140 ? \"intermediate\" : \"advanced\";\n\n// Build the prompt as required by the AI model\nconst prompt = `\nROLE: You are an AI physical therapy assistant named \"OrthoCare AI\", specializing in knee rehabilitation after injuries or surgery.\n\nPATIENT DATA:\n- Mobility Score: ${mobilityScore} out of 100 (Higher is better)\n- Patient-Reported Pain Level: ${painLevel} out of 10 (Lower is better)\n- Recovery Stage: ${recoveryStage} (e.g., 'initial', 'intermediate', 'advanced')\n\nTASK:\nAnalyze the patient's data above and provide a personalized exercise recommendation that is safe and effective for their current condition.\n\nCRITICAL INSTRUCTIONS:\n1. **Safety First:** If pain level is reported as 7 or higher, do not recommend a new exercise. Instead, recommend rest and consulting their physical therapist.\n2. **Exercise Type:** For recovery stages 'initial' or pain levels above 4, recommend only passive range-of-motion or very gentle strengthening exercises (e.g., heel slides, quad sets, straight leg raises). Avoid recommending weighted or high-impact exercises.\n3. **Tone:** Be supportive, encouraging, and professional.\n4. **OUTPUT FORMAT:** You MUST respond in a valid JSON format only, using the following exact keys:\n\n{\n  \"feedback\": \"(Your overall assessment and message for the patient. 1-2 sentences.)\",\n  \"recommendedExercise\": \"(The name of a single, specific knee rehabilitation exercise. If pain is too high, put 'Consult Therapist'.)\",\n  \"rationale\": \"(A brief, one-sentence explanation for your recommendation.)\",\n  \"confidence\": (A number between 0.5 and 1.0 representing your confidence in this recommendation.)\n}\n`;\n\n// Return this prompt and other useful information\nreturn [{\n  json: {\n    timestamp,\n    kneeAngle,\n    roll,\n    pitch,\n    yaw,\n    recordingStatus,\n    source,\n    mobilityScore,\n    painLevel,\n    recoveryStage,\n    prompt\n  }\n}];\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        160
+      ],
+      "id": "311e52db-910e-4746-bd53-bbe86e078a5c",
+      "name": "Code in JavaScript3"
     }
   ],
-  "pinData": {
-    "Webhook": [
-      {
-        "json": {
-          "headers": {
-            "host": "clakshanaa1.app.n8n.cloud",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/139.0.0.0 Safari/537.36",
-            "accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "accept-encoding": "gzip, br",
-            "accept-language": "en-US,en;q=0.9",
-            "authorization": "Basic YWRtaW46MTIz",
-            "cache-control": "max-age=0",
-            "cdn-loop": "cloudflare; loops=1; subreqs=1",
-            "cf-connecting-ip": "14.195.8.78",
-            "cf-ew-via": "15",
-            "cf-ipcountry": "IN",
-            "cf-ray": "97dd75ad832d7fcd-MAA",
-            "cf-visitor": "{\"scheme\":\"https\"}",
-            "cf-worker": "n8n.cloud",
-            "cookie": "rl_page_init_referrer=RudderEncrypt%3AU2FsdGVkX1%2BKik%2BD5r89W0AYGQDyxXHTGHJ%2FJi6hql0%3D; rl_page_init_referring_domain=RudderEncrypt%3AU2FsdGVkX1%2FHVWEiFgPae5DFidKceCThBzQ9G6jbJm4%3D; _ga=GA1.1.1478059938.1757653318; _fbp=fb.1.1757653317894.814568647479485949; _gcl_au=1.1.2108315939.1757653329; _ga_0SC4FF2FH9=GS2.1.s1757653317$o1$g1$t1757653502$j7$l0$h0; rl_anonymous_id=RudderEncrypt%3AU2FsdGVkX1%2BxQkqjzEVEH5zqvIUXy%2BU%2FI9TOkQWndNi6UUns%2B36GTLD%2FmoB7PvoLE7M0ujir3FWcE%2BWR5lqTAw%3D%3D; rl_user_id=RudderEncrypt%3AU2FsdGVkX1%2BVJhXPWPHPw9uoCk9%2B2BXN1l2fAX%2B%2B7ioC%2BsDTG%2FXptp6P85cx9%2BBY05xFGm2s7i5crdnKH1eYOtKGO%2BdpkyQ8N6rWFhg7xJK6wy6iccDtc3TUHg5BWroaC7k8%2Be3SzfxY3enBA4%2Fvvhvo1qqrxo4LdqhPsw15ZN4%3D; rl_trait=RudderEncrypt%3AU2FsdGVkX18%2BlvELMRu4rcPwKsR9VQkwYXNN7NUeXVPFYsfEaJxoWK3gS7vZGyA%2Bl9isRjrODJWDRwhl%2FXlq9pv5ceNNZZofJQTsH2vi780xN1lKa%2FjreHqbXjjyFrT2M62HPrQ%2FjKSom8ubv7wr5e38J265K6Oznp7EP2j1qHA%3D; n8n_anonymous_id=4e12c180-c5a2-4d76-937d-953821b1c549; ph_phc_4URIAm1uYfJO7j8kWSe0J8lc8IqnstRLS7Jx8NcakHo_posthog=%7B%22distinct_id%22%3A%226d3ce1835304e0447e3b76ae2d0e0495099c90e9f37b9d2ade5d0d578fff1fc9%2364c5a961-8366-418f-bbd3-91314ae8da04%22%2C%22%24sesid%22%3A%5Bnull%2C%2201993c82-81eb-7ac4-a1bd-4db308a79911%22%2C1757656809963%5D%2C%22%24epp%22%3Atrue%2C%22%24initial_person_info%22%3A%7B%22r%22%3A%22%24direct%22%2C%22u%22%3A%22https%3A%2F%2Fclakshanaa1.app.n8n.cloud%2Fworkflows%22%7D%7D; rl_session=RudderEncrypt%3AU2FsdGVkX1%2Bk7l00PWQw3m2jnSRgLqGjNgT0GQR8bgeQTDr5eU94cQmbf48ctsnw1CBcCQthbACNet7IASwjDudJYMSQrmRmrYFTIfoHCC6S9RFL3Axdo%2BXm9gW8npa%2FF6RQHSwcJ7JcKGlnU7brMw%3D%3D",
-            "priority": "u=0, i",
-            "sec-ch-ua": "\"Not;A=Brand\";v=\"99\", \"Google Chrome\";v=\"139\", \"Chromium\";v=\"139\"",
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": "\"Windows\"",
-            "sec-fetch-dest": "document",
-            "sec-fetch-mode": "navigate",
-            "sec-fetch-site": "none",
-            "sec-fetch-user": "?1",
-            "upgrade-insecure-requests": "1",
-            "x-forwarded-for": "14.195.8.78, 172.69.131.197",
-            "x-forwarded-host": "clakshanaa1.app.n8n.cloud",
-            "x-forwarded-port": "443",
-            "x-forwarded-proto": "https",
-            "x-forwarded-server": "traefik-prod-users-gwc-64-799ffc96d7-wxqsl",
-            "x-is-trusted": "yes",
-            "x-real-ip": "14.195.8.78"
-          },
-          "params": {},
-          "query": {
-            "mobility_score": "65",
-            "pain_level": "3",
-            "recovery_stage": "intermediate"
-          },
-          "body": {},
-          "webhookUrl": "https://clakshanaa1.app.n8n.cloud/webhook-test/376d970f-c7dd-4495-b201-f80338650993",
-          "executionMode": "test"
-        }
-      }
-    ]
-  },
+  "pinData": {},
   "connections": {
     "Webhook": {
       "main": [
@@ -187,7 +139,7 @@
       "main": [
         [
           {
-            "node": "Message a model",
+            "node": "Code in JavaScript3",
             "type": "main",
             "index": 0
           }
@@ -207,17 +159,6 @@
     },
     "Code in JavaScript1": {
       "main": [
-        [
-          {
-            "node": "Code in JavaScript2",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Find documents": {
-      "main": [
         []
       ]
     },
@@ -231,13 +172,25 @@
           }
         ]
       ]
+    },
+    "Code in JavaScript3": {
+      "main": [
+        [
+          {
+            "node": "Message a model",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
-    "executionOrder": "v1"
+    "executionOrder": "v1",
+    "callerPolicy": "workflowsFromSameOwner"
   },
-  "versionId": "4719f2ef-dca0-41e2-9b9c-ab4d22f3cf33",
+  "versionId": "ca804ab9-5ca1-4f20-abf7-f891f0241e0d",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "6d3ce1835304e0447e3b76ae2d0e0495099c90e9f37b9d2ade5d0d578fff1fc9"
