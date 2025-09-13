@@ -226,7 +226,18 @@ export class MongoStorage implements IStorage {
   private serialPorts: Collection<SerialPort>;
 
   constructor(connectionString: string, dbName: string = "knee_rehabilitation") {
-    this.client = new MongoClient(connectionString);
+    // Add SSL configuration for MongoDB Atlas compatibility
+    this.client = new MongoClient(connectionString, {
+      tlsAllowInvalidCertificates: false,
+      tlsAllowInvalidHostnames: false,
+      tls: true,
+      serverSelectionTimeoutMS: 10000,
+      connectTimeoutMS: 10000,
+      socketTimeoutMS: 0,
+      maxPoolSize: 10,
+      retryWrites: true,
+      w: 'majority'
+    });
     this.db = this.client.db(dbName);
     this.users = this.db.collection<User>("users");
     this.sensorReadings = this.db.collection<SensorReading>("sensor_readings");
@@ -453,5 +464,4 @@ export async function getStorage(): Promise<IStorage> {
   return storageInstance;
 }
 
-// For backwards compatibility, export a storage object that will be initialized
-export const storage = new MemStorage(); // This will be replaced when server starts
+// Note: Use getStorage() to get the properly initialized storage instance (MongoDB or MemStorage)

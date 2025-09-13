@@ -1,107 +1,125 @@
-import { sql } from "drizzle-orm";
-import { pgTable, text, varchar, timestamp, real, integer, jsonb, boolean } from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  username: text("username").notNull().unique(),
-  password: text("password").notNull(),
+// User schemas
+export const insertUserSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
 });
 
-export const sensorReadings = pgTable("sensor_readings", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: text("session_id").notNull(),
-  timestamp: timestamp("timestamp").defaultNow().notNull(),
-  exerciseType: integer("exercise_type").notNull(), // 0: flexion, 1: extension, 2: lateral
-  kneeAngle: real("knee_angle").notNull(),
-  temperature: real("temperature").notNull(),
-  rawSensorData: jsonb("raw_sensor_data").notNull(), // accelerometer and gyroscope data
-  angles: jsonb("angles").notNull(), // roll, pitch, yaw
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const userSchema = insertUserSchema.extend({
+  id: z.string(),
 });
 
-export const sessions = pgTable("sessions", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: text("session_id").notNull().unique(),
-  exerciseType: integer("exercise_type").notNull(),
-  startTime: timestamp("start_time").defaultNow().notNull(),
-  endTime: timestamp("end_time"),
-  isActive: boolean("is_active").default(true).notNull(),
-  readingCount: integer("reading_count").default(0).notNull(),
-  maxAngle: real("max_angle"),
-  avgAngle: real("avg_angle"),
-  qualityScore: real("quality_score"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// Sensor reading schemas
+export const insertSensorReadingSchema = z.object({
+  sessionId: z.string(),
+  timestamp: z.date().optional(),
+  exerciseType: z.number().int().min(0).max(2), // 0: flexion, 1: extension, 2: lateral
+  kneeAngle: z.number(),
+  temperature: z.number(),
+  rawSensorData: z.object({
+    accelX: z.number(),
+    accelY: z.number(),
+    accelZ: z.number(),
+    gyroX: z.number(),
+    gyroY: z.number(),
+    gyroZ: z.number(),
+  }),
+  angles: z.object({
+    roll: z.number(),
+    pitch: z.number(),
+    yaw: z.number(),
+  }),
 });
 
-export const recommendations = pgTable("recommendations", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  sessionId: text("session_id").notNull(),
-  type: text("type").notNull(), // "increase_range", "hold_position", "gentle_extension"
-  title: text("title").notNull(),
-  description: text("description").notNull(),
-  progress: real("progress"),
-  status: text("status").notNull(), // "recommended", "completed", "in_progress"
-  priority: integer("priority").default(1).notNull(),
-  fromN8n: boolean("from_n8n").default(true).notNull(),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+export const sensorReadingSchema = insertSensorReadingSchema.extend({
+  id: z.string(),
+  timestamp: z.date(),
+  createdAt: z.date(),
 });
 
-export const serialPorts = pgTable("serial_ports", {
-  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  path: text("path").notNull().unique(),
-  manufacturer: text("manufacturer"),
-  vendorId: text("vendor_id"),
-  productId: text("product_id"),
-  isActive: boolean("is_active").default(false).notNull(),
-  lastConnected: timestamp("last_connected"),
-  createdAt: timestamp("created_at").defaultNow().notNull(),
+// Session schemas
+export const insertSessionSchema = z.object({
+  sessionId: z.string(),
+  exerciseType: z.number().int().min(0).max(2),
+  startTime: z.date().optional(),
+  endTime: z.date().nullable().optional(),
+  isActive: z.boolean().optional(),
+  readingCount: z.number().int().optional(),
+  maxAngle: z.number().nullable().optional(),
+  avgAngle: z.number().nullable().optional(),
+  qualityScore: z.number().nullable().optional(),
 });
 
-// Insert schemas
-export const insertUserSchema = createInsertSchema(users).pick({
-  username: true,
-  password: true,
+export const sessionSchema = insertSessionSchema.extend({
+  id: z.string(),
+  startTime: z.date(),
+  endTime: z.date().nullable(),
+  isActive: z.boolean(),
+  readingCount: z.number().int(),
+  maxAngle: z.number().nullable(),
+  avgAngle: z.number().nullable(),
+  qualityScore: z.number().nullable(),
+  createdAt: z.date(),
 });
 
-export const insertSensorReadingSchema = createInsertSchema(sensorReadings).omit({
-  id: true,
-  createdAt: true,
+// Recommendation schemas
+export const insertRecommendationSchema = z.object({
+  sessionId: z.string(),
+  type: z.string(), // "increase_range", "hold_position", "gentle_extension"
+  title: z.string(),
+  description: z.string(),
+  progress: z.number().nullable().optional(),
+  status: z.string(), // "recommended", "completed", "in_progress"
+  priority: z.number().int().optional(),
+  fromN8n: z.boolean().optional(),
 });
 
-export const insertSessionSchema = createInsertSchema(sessions).omit({
-  id: true,
-  createdAt: true,
+export const recommendationSchema = insertRecommendationSchema.extend({
+  id: z.string(),
+  progress: z.number().nullable(),
+  priority: z.number().int(),
+  fromN8n: z.boolean(),
+  createdAt: z.date(),
 });
 
-export const insertRecommendationSchema = createInsertSchema(recommendations).omit({
-  id: true,
-  createdAt: true,
+// Serial port schemas
+export const insertSerialPortSchema = z.object({
+  path: z.string(),
+  manufacturer: z.string().nullable().optional(),
+  vendorId: z.string().nullable().optional(),
+  productId: z.string().nullable().optional(),
+  isActive: z.boolean().optional(),
+  lastConnected: z.date().nullable().optional(),
 });
 
-export const insertSerialPortSchema = createInsertSchema(serialPorts).omit({
-  id: true,
-  createdAt: true,
+export const serialPortSchema = insertSerialPortSchema.extend({
+  id: z.string(),
+  manufacturer: z.string().nullable(),
+  vendorId: z.string().nullable(),
+  productId: z.string().nullable(),
+  isActive: z.boolean(),
+  lastConnected: z.date().nullable(),
+  createdAt: z.date(),
 });
 
-// Types
+// TypeScript types
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type User = z.infer<typeof userSchema>;
 
 export type InsertSensorReading = z.infer<typeof insertSensorReadingSchema>;
-export type SensorReading = typeof sensorReadings.$inferSelect;
+export type SensorReading = z.infer<typeof sensorReadingSchema>;
 
 export type InsertSession = z.infer<typeof insertSessionSchema>;
-export type Session = typeof sessions.$inferSelect;
+export type Session = z.infer<typeof sessionSchema>;
 
 export type InsertRecommendation = z.infer<typeof insertRecommendationSchema>;
-export type Recommendation = typeof recommendations.$inferSelect;
+export type Recommendation = z.infer<typeof recommendationSchema>;
 
 export type InsertSerialPort = z.infer<typeof insertSerialPortSchema>;
-export type SerialPort = typeof serialPorts.$inferSelect;
+export type SerialPort = z.infer<typeof serialPortSchema>;
 
-// Arduino data types based on the INO file
+// Arduino data schema (for incoming sensor data)
 export const arduinoDataSchema = z.object({
   sessionId: z.string(),
   timestamp: z.number(),
